@@ -1,39 +1,59 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import db from '../../db/db';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
 
+export interface IQueryModel {
+  address: string;
+  apiType: 'fullAddress' | 'countryOnly';
+}
+
 @Injectable()
 export class GeoService {
   constructor(private readonly httpService: HttpService) {}
-  async buildLngLatByAddress(address: string): Promise<object> {
-    const localResult = await this.checkAddressLocally(address);
-    if (localResult) {
+  apiKey = 'AIzaSyClVO_D6Z7axEDqnuBxAOgDLyRdbEMTSpg';
+
+  async buildLngLatByAddress(query: IQueryModel): Promise<object> {
+    try {
+      const { address, apiType } = query;
+      const localResult = await this.checkAddressLocally(address, apiType);
+      if (localResult) {
+        return {
+          cached: true,
+          result: localResult,
+        };
+      }
+
+      const googleResult = await this.getAddressFromGoogle(address, apiType);
+
+      if (!googleResult) {
+        return {};
+      }
+      await this.saveAddressLocally(address, googleResult, apiType);
       return {
-        cached: true,
-        result: localResult,
+        cached: false,
+        result: googleResult,
       };
+    } catch (err) {
+      console.log('Error', err.msg | err);
+      throw new HttpException(
+        `Failed to get address. Error: ${err}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
-
-    const googleResult = await this.getAddressFromGoogle(address);
-
-    if (!googleResult) {
-      return {};
-    }
-    await this.saveAddressLocally(address, googleResult);
-    return {
-      cached: false,
-      result: googleResult,
-    };
   }
 
-  private async getAddressFromGoogle(query: string): Promise<object> {
-    const apiKey = 'AIzaSyClVO_D6Z7axEDqnuBxAOgDLyRdbEMTSpg';
-    const encoded = encodeURI(query);
+  private async getAddressFromGoogle(
+    address: string,
+    apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
+  ): Promise<object> {
+    const encoded = encodeURI(address);
     try {
+      const queryType =
+        apiType === 'countryOnly' ? 'components=country:' : 'address=';
       const result = await lastValueFrom(
         this.httpService.get(
-          `https://maps.googleapis.com/maps/api/geocode/json?key=${apiKey}&address=${encoded}`,
+          `https://maps.googleapis.com/maps/api/geocode/json?key=${this.apiKey}&${queryType}=${encoded}`,
         ),
       );
       if (result?.data?.results?.length) {
@@ -42,23 +62,36 @@ export class GeoService {
         return {};
       }
     } catch (err) {
-      console.log('err: ', err);
+      throw new HttpException(
+        `Failed to get address from Google service. Error: ${err}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
-  async checkAddressLocally(address: string): Promise<any> {
+  async checkAddressLocally(
+    address: string,
+    apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
+  ): Promise<any> {
     try {
-      return await db.get(address);
+      return await db.get(`${apiType}_${address}`);
     } catch (err) {
-      console.log('Address does not exist locally');
+      console.log(`Address ${address} does not exist locally`);
     }
   }
 
-  private async saveAddressLocally(address: string, value) {
+  private async saveAddressLocally(
+    address: string,
+    value: any,
+    apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
+  ) {
     try {
-      await db.put(address, value);
+      await db.put(`${apiType}_${address}`, value);
     } catch (err) {
-      console.log('Some Error');
+      throw new HttpException(
+        `Failed to save address locally. Error: ${err}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

@@ -1,14 +1,12 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
-import { GeoService } from './geo.service';
+import { Controller, Get, Query } from '@nestjs/common';
+import { GeoService, IQueryModel } from './geo.service';
 
 @Controller('geo')
 export class GeoController {
   constructor(private geoService: GeoService) {}
 
   @Get('/checkAddress/')
-  async checkAddressLocally(
-    @Query('address') address: string,
-  ): Promise<object> {
-    return await this.geoService.buildLngLatByAddress(address);
+  async checkAddressLocally(@Query() query: IQueryModel): Promise<object> {
+    return await this.geoService.buildLngLatByAddress(query);
   }
 }
