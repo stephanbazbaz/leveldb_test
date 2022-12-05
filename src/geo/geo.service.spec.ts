@@ -19,6 +19,23 @@ describe('GeoService', () => {
     service = module.get<GeoService>(GeoService);
   });
 
+  it('should find country only address in local db', async () => {
+    const localResult = await service.checkAddressLocally(
+      'spain',
+      'countryOnly',
+    );
+    expect(localResult).not.toBe(undefined);
+  });
+
+  it('should find full address in local db', async () => {
+    const myuuid = uuidv4();
+    const localResult = await service.checkAddressLocally(
+      myuuid,
+      'fullAddress',
+    );
+    expect(localResult).toBe(undefined);
+  });
+
   it('should search for country only in local db, if not found search it in google and save it to local db', async () => {
     const myuuid = uuidv4();
     const localResult = await service.checkAddressLocally(
@@ -40,7 +57,7 @@ describe('GeoService', () => {
       await db.put(myuuid, checkAddressInGoogle.toString());
 
       const result = await db.get(myuuid);
-      expect(result).not.toBeNull();
+      expect(result).not.toBe(undefined);
     }
   });
 
