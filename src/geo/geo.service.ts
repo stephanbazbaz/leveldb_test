@@ -1,8 +1,14 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  CACHE_MANAGER,
+} from '@nestjs/common';
 import db from '../../db/db';
 import { HttpService } from '@nestjs/axios';
 import { lastValueFrom } from 'rxjs';
-
+import { Cache } from 'cache-manager';
 export interface IQueryModel {
   address: string;
   apiType: 'fullAddress' | 'countryOnly';
@@ -10,7 +16,10 @@ export interface IQueryModel {
 
 @Injectable()
 export class GeoService {
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    @Inject(CACHE_MANAGER) private cacheService: Cache,
+  ) {}
   apiKey = 'AIzaSyClVO_D6Z7axEDqnuBxAOgDLyRdbEMTSpg';
 
   async buildLngLatByAddress(query: IQueryModel): Promise<object> {
@@ -35,7 +44,7 @@ export class GeoService {
         result: googleResult,
       };
     } catch (err) {
-      console.log('Error', err.msg | err);
+      console.log('Error', err.message | err);
       throw new HttpException(
         `Failed to get address. Error: ${err}`,
         HttpStatus.BAD_REQUEST,
@@ -43,7 +52,7 @@ export class GeoService {
     }
   }
 
-  private async getAddressFromGoogle(
+  async getAddressFromGoogle(
     address: string,
     apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
   ): Promise<object> {
@@ -68,12 +77,28 @@ export class GeoService {
       );
     }
   }
+  async setDataToRedisCached(
+    address: string,
+    value: any,
+    apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
+  ) {
+    await this.cacheService.set(`${apiType}_${address}`, value);
+  }
+  async getDataFromRedisCached(
+    address: string,
+    apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
+  ) {
+    const cachedData = await this.cacheService.get(`${apiType}_${address}`);
+    return cachedData;
+  }
 
   async checkAddressLocally(
     address: string,
     apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
   ): Promise<any> {
     try {
+      const redisCached = await this.getDataFromRedisCached(address, apiType);
+      console.log(redisCached);
       return await db.get(`${apiType}_${address}`);
     } catch (err) {
       console.log(`Address ${address} does not exist locally`);
@@ -86,6 +111,7 @@ export class GeoService {
     apiType: 'fullAddress' | 'countryOnly' = 'fullAddress',
   ) {
     try {
+      await this.setDataToRedisCached(address, value, apiType);
       await db.put(`${apiType}_${address}`, value);
     } catch (err) {
       throw new HttpException(
