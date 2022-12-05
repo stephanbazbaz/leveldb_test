@@ -20,20 +20,10 @@ describe('GeoService', () => {
   });
 
   it('should find country only address in local db', async () => {
-    const localResult = await service.checkAddressLocally(
-      'spain',
-      'countryOnly',
-    );
-    expect(localResult).not.toBe(undefined);
-  });
-
-  it('should find full address in local db', async () => {
-    const encoded = encodeURI('Yehuda Hayamit St 21');
-    const localResult = await service.checkAddressLocally(
-      encoded,
-      'fullAddress',
-    );
-    expect(localResult).toBe(undefined);
+    const myuuid = uuidv4();
+    await db.put(myuuid, googleResult.toString());
+    const result = await db.get(myuuid);
+    expect(result).not.toBe(undefined);
   });
 
   it('should search for country only in local db, if not found search it in google and save it to local db', async () => {
@@ -55,7 +45,6 @@ describe('GeoService', () => {
     if (!localResult) {
       expect(checkAddressInGoogle).toBe(googleResult);
       await db.put(myuuid, checkAddressInGoogle.toString());
-
       const result = await db.get(myuuid);
       expect(result).not.toBe(undefined);
     }
@@ -79,7 +68,6 @@ describe('GeoService', () => {
     if (!localResult) {
       expect(checkAddressInGoogle).toBe(fullAddressResult);
       await db.put(myuuid, checkAddressInGoogle.toString());
-
       const result = await db.get(myuuid);
       expect(result).not.toBeNull();
     }
