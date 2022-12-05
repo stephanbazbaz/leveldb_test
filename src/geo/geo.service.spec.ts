@@ -28,9 +28,9 @@ describe('GeoService', () => {
   });
 
   it('should find full address in local db', async () => {
-    const myuuid = uuidv4();
+    const encoded = encodeURI('Yehuda Hayamit St 21');
     const localResult = await service.checkAddressLocally(
-      myuuid,
+      encoded,
       'fullAddress',
     );
     expect(localResult).toBe(undefined);
