@@ -1,4 +1,4 @@
-export const googleResult = {
+export const countryOnlyResult = {
   cached: false,
   result: {
     address_components: [
